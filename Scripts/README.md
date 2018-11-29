@@ -1,11 +1,15 @@
 # Scripts
 
-Script FakeOpenSmtpRelay.py is the central component, as it tries to differenciate in the received emails between email probes sent by spammers and spam messages.
+[Script FakeOpenSmtpRelay.py](FakeOpenSmtpRelay.py) is the central component, as it tries to differenciate in the received emails between email probes sent by spammers and spam messages.
 
 
 ## FakeOpenSmtpRelay.py
 
-Before running this script, review the settings in class GlobalConfig and adapt them to your needs.
+### Installation
+[FakeOpenSmtpRelay.py](FakeOpenSmtpRelay.py) was written for Python3 and requires module dns.resolver (previously known as dnspython - ```sudo apt-get install python3-pip && sudo pip3 install dnspython3``` to install the module).
+
+Download the [script](FakeOpenSmtpRelay.py) and assign it execution permissions (```chmod +x FakeOpenSmtpRelay.py```). Review the settings in class GlobalConfig and adapt them to your needs before executing the script for the first time.
+
 
 ### Usage
 ```
