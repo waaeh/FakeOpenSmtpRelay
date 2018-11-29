@@ -61,7 +61,7 @@ sleep 60
 ```
 
 ### Allow the mboxes to be accessed from a mail client
-In step 3 we will configure an email server on the machine to retrieve and monitor our fake open relay. To view the emails received over SMTP and SMTPS we need them to be storedin 2 different folders. To do so, alter file /usr/share/perl5/INetSim/Config.pm as follow:
+In step 3 we will configure an email server on the machine to retrieve and monitor our fake open relay. To view the emails received over SMTP and SMTPS we need them to be stored in 2 different folders. To do so, alter file /usr/share/perl5/INetSim/Config.pm as follow:
 ```diff
       [...]
 		  SMTP_Extended_SMTP => 1,
@@ -76,4 +76,26 @@ In step 3 we will configure an email server on the machine to retrieve and monit
 -		  SMTPS_MBOXFileName => $datadir . "smtp/smtps.mbox",
 +		  SMTPS_MBOXFileName => $datadir . "smtp/smtps/inbox",
 		  SMTPS_AuthReversibleOnly => 0,
+```
+
+### WORK IN PROGRESS - Adaptations to support STARTTLS / explicit SMTPS
+[As already noted in the FAQ](../../../#why-is-starttls-disabled-when-receiving-emails), STARTTLS / explicit SMTPS doesn't work according to my tests. The following attempts to correct this have been made, without success so far:
+
+Alter file /usr/share/perl5/INetSim/SMTP.pm to remove the hardcoded reference to SSL version 2 & 3 only:
+```diff
+	sub upgrade_to_ssl {
+		my $self = shift;
++		# EDITED to exclude the SSL version stuff
+-		my %ssl_params = (  SSL_version             => "SSLv23",
+-		                    SSL_cipher_list         => "ALL",
+-		                    SSL_server              => 1,
+-		                    SSL_use_cert            => 1,
+-		                    SSL_key_file            => $self->{ssl_key},
+-		                    SSL_cert_file           => $self->{ssl_crt} );
++		my %ssl_params = ( SSL_server              => 1,
++		                    SSL_use_cert            => 1,
++		                    SSL_key_file            => $self->{ssl_key},
++		                    SSL_cert_file           => $self->{ssl_crt} );
++		# ADDED for debugging purposes
++		$IO::Socket::SSL::DEBUG = 3;
 ```
