@@ -7,7 +7,7 @@ Collection of scripts, configuration settings and programs to simulate an open a
 
 ## How to get started
 1. Install INetSim and adapt it to your needs (see folder TODO)
-2. Download, install and configure script FakeOpenSmtpRelay.py (TODO link)
+2. Download, install and configure [script FakeOpenSmtpRelay.py](Scripts/). You need Python version 3 and module dnspython installed (```sudo apt-get install python3-pip && sudo pip3 install dnspython3``` to install dnspython)
 3. (Optional) Install your preferred mail daemon to be able to monitor the emails being trapped in your fake open SMTP relay (TODO: steps for dovecot)
 
 
