@@ -19,10 +19,12 @@ FakeOpenSmtpRelay is a collection of scripts, configuration settings and program
 Fooled spammers might then use your fake open SMTP relay to try to send mass emails, without success. Various safeguards ensure such content never reaches victims. Having such campaigns hitting your honeypot can be useful for research and increase costs & effort to malicious actors.
 
 
-### My ISP will ban me if I install and start relaying random emails received from the Internet!
-The key point of FakeOpenSmtpRelay is to identify when a message is just a spam or an email probe sent by a spammer to himself to find new vulnerable SMTP open relay servers. In the author's experience, spammers will first check that an open relay actually relays the message. To verify this, they usually send a few emails to themselves with in the header the IP address (and optionally SMTP credentials) of the open relay. 
+### My ISP will ban me if I start relaying random emails received from the Internet!
+Don't worry, this won't happen! The key point of FakeOpenSmtpRelay is to identify when a message is just a spam or an email probe sent by a spammer to himself to find new vulnerable SMTP open relay servers.
 
-[FakeOpenSmtpRelay.py](Scripts/) identifies such email probes and only relays them. Spam messages will not be relayed.
+In the author's experience, spammers will first check that an open relay actually relays the message. To verify this, they usually send a few emails to themselves with in the header the IP address (and optionally SMTP credentials) of the open relay. 
+
+[FakeOpenSmtpRelay.py](Scripts/) identifies such email probes and only relays them. Spam messages will not be relayed but kept locally so you can study / report them.
 
 
 ### Why is STARTTLS disabled when receiving emails?
