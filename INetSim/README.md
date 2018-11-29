@@ -12,25 +12,31 @@ The following changes were done to this installation:
 
 ### Configure the services in /etc/inetsim/inetsim.conf
 - Disabled all services but smtp & smtps:
-  ```perl
-  #start_service dns
-  #start_service http
-  #start_service https
-  start_service smtp
-  start_service smtps
-  #start_service pop3
-  #start_service pop3s
+  ```diff
+  -  start_service dns
+  -  start_service http
+  -  start_service https
+  +  #start_service dns
+  +  #start_service http
+  +  #start_service https
+     start_service smtp
+     start_service smtps
+  -  start_service pop3
+  -  start_service pop3s
+  +  #start_service pop3
+  +  #start_service pop3s
   [...]
   ```
 - Specified a ```service_bind_address```
 - Enabled a customized SMTP banner for settings ```smtp_banner``` & ```smtps_banner```
 - Specified a fully qualified domain name for settings ```smtp_fqdn_hostname``` & ```smtps_fqdn_hostname```
 - Disabled STARTTLS as smtp_service_extension
-  ```perl
-  [...]
-  smtp_service_extension		DSN
-  smtp_service_extension		ETRN
-  #smtp_service_extension		STARTTLS
+  ```diff
+      [...]
+      smtp_service_extension		DSN
+      smtp_service_extension		ETRN
+  -   smtp_service_extension		STARTTLS
+  +   #smtp_service_extension		STARTTLS
   ```
 - Generated a self-signed certificate for SMTPS and referenced it in
   - ```smtp_ssl_keyfile```
@@ -52,4 +58,22 @@ If your services do not fork / bind on startup, consider adding some delay (e.g.
 # ADDITION - waiting 60 seconds to see if the forking issues at startup get solved...
 sleep 60
 &INetSim::Log::MainLog(" Forking services...");
+```
+
+### Allow the mboxes to be accessed from a mail client
+In step 3 we will configure an email server on the machine to retrieve and monitor our fake open relay. To view the emails received over SMTP and SMTPS we need them to be storedin 2 different folders. To do so, alter file /usr/share/perl5/INetSim/Config.pm as follow:
+```diff
+      [...]
+		  SMTP_Extended_SMTP => 1,
+		  SMTP_Service_Extensions => {},
+-		  SMTP_MBOXFileName => $datadir . "smtp/smtp.mbox",
++		  SMTP_MBOXFileName => $datadir . "smtp/smtp/inbox",
+		  SMTP_AuthReversibleOnly => 0,
+      [...]
+		  SMTPS_HELO_required => 0,
+		  SMTPS_Extended_SMTP => 1,
+		  SMTPS_Service_Extensions => {},
+-		  SMTPS_MBOXFileName => $datadir . "smtp/smtps.mbox",
++		  SMTPS_MBOXFileName => $datadir . "smtp/smtps/inbox",
+		  SMTPS_AuthReversibleOnly => 0,
 ```
