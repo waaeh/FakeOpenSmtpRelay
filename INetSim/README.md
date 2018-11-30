@@ -2,13 +2,17 @@
 
 [INetSim](https://www.inetsim.org/) is a software suite for simulating common internet services, under GPL licence, ©2007-2018 Thomas Hungenberg & Matthias Eckert.
 
-We use INetSim to simulate a SMTP and SMTPS server on Internet. INetSim will store any received email in a mbox format. [Script FakeOpenSmtpRelay.py](Scripts/) will then parse this mbox and relay relevant messages.
+We use INetSim to simulate a SMTP and SMTPS server on Internet. INetSim will store any received email in a mbox format. [Script FakeOpenSmtpRelay.py](../Scripts/) will then parse this mbox and relay relevant messages.
 
 
 ## Installation
-I used the package version of inetsim (```sudo apt-get install inetsim``` - version 1.2.8-1 at the time of the writing), which creates a dedicated user inetsim.
+I used the [package version of INetSim](https://www.inetsim.org/packages.html) (version 1.2.8-1 at the time of the writing), which creates a dedicated user inetsim. As root:
+- `echo "deb http://www.inetsim.org/debian/ binary/" > /etc/apt/sources.list.d/inetsim.list`
+- `wget -O - https://www.inetsim.org/inetsim-archive-signing-key.asc | apt-key add -`
+- `apt update`
+- `apt install inetsim`
 
-The following changes were done to this installation:
+The following changes were done to the default installation:
 
 ### Configure the services in /etc/inetsim/inetsim.conf
 - Disabled all services but smtp & smtps:
@@ -61,7 +65,7 @@ sleep 60
 ```
 
 ### Allow the mboxes to be accessed from a mail client
-In step 3 we will configure an email server on the machine to retrieve and monitor our fake open relay. To view the emails received over SMTP and SMTPS we need them to be stored in 2 different folders. To do so, alter file /usr/share/perl5/INetSim/Config.pm as follow:
+[In step 3 we will configure an email server on the machine to retrieve and monitor our fake open relay](../IMAP%20Server/README.md). To view the emails received over SMTP and SMTPS we need them to be stored in 2 different folders. To do so, alter file /usr/share/perl5/INetSim/Config.pm as follow:
 ```diff
       [...]
 		  SMTP_Extended_SMTP => 1,
@@ -77,6 +81,9 @@ In step 3 we will configure an email server on the machine to retrieve and monit
 +		  SMTPS_MBOXFileName => $datadir . "smtp/smtps/inbox",
 		  SMTPS_AuthReversibleOnly => 0,
 ```
+
+Create folder `smtps` (by default in `/var/lib/inetsim/inetsim/smtp/` and assign ownership and modify rights to user inetsim.
+
 
 ### WORK IN PROGRESS - Adaptations to support STARTTLS / explicit SMTPS
 [As already noted in the FAQ](../../../#why-is-starttls-disabled-when-receiving-emails), STARTTLS / explicit SMTPS doesn't work according to my tests. The following attempts to correct this have been made, without success so far:
