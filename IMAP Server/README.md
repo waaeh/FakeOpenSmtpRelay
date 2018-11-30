@@ -11,6 +11,8 @@ Thanks to an IMAP server and your preferred mail client, you can:
 	- ```X-Relay-Sendmail-Quit```: result of the QUIT command.
 	- ```X-Relay-Sendmail-Exception```: should be ```None``` unless an exception occured
  
+Consider restricting access to the IMAP server to yourself (e.g. bind it on an internal interface only, unreachable from the Internet).
+
 
 ## Installation
 Any IMAP daemon might do the job, as long as it supports mailbox format mbox.
