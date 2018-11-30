@@ -27,5 +27,11 @@ In the author's experience, spammers will first check that an open relay actuall
 [FakeOpenSmtpRelay.py](Scripts/) identifies such email probes and only relays them. Spam messages will not be relayed but kept locally so you can study / report them.
 
 
+### I received an email probe, but it wasn't relayed because the criterias are not met. How can I relay it?
+First of all, relay it manually using the interactive mode ([FakeOpenSmtpRelay.py](Scripts/) command line argument ```-i, --interactive```), then selecting option [R] Relay and then the message to forward. Confirm the various prompts to send the message.
+
+If you want to add a detection condition on wherethere a message is a probe or not, edit function ParseOpenRelayInbox.FilterMessage to return True if an email is a probe.
+
+
 ### Why is STARTTLS disabled when receiving emails?
 While INetSim claims to support STARTTLS when receiving emails, it does not work according to my tests. Therefore this setting is disabled until the root cause can be determined.
