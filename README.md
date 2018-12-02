@@ -35,3 +35,22 @@ If you want to add a detection condition on wherethere a message is a probe or n
 
 ### Why is STARTTLS disabled when receiving emails?
 While INetSim claims to support STARTTLS when receiving emails, it does not work according to my tests. Therefore this setting is disabled until the root cause can be determined.
+
+
+### Why do I get SMTP exception `5.7.1 Command rejected` when trying to relay an email?
+Some SMTP servers will reject emails missing key SMTP headers, such as Date. As the email we relay are (almost) unchanged as when they were received, there's nothing we should do. A true open relay would operate the same way, thus have the email rejected as well.
+
+
+### How many ressources does it require?
+I run the whole setup on a Rasperry Pi. While idling, ~100 MB of RAM are used for INetSim (~60 MB) and FakeOpenSmtpRelay.py (~40 MB).
+
+These numbers of course dramatically change when your honeypot is receiving a massive (mal)spam campaign. 
+
+
+### The relaying SMTP server used to sent email probes isn't the one referenced in the logs / the official MX of the domain (according to the server EHLO / QUIT message etc). Why?
+Several ISPs do a Man-in-the-Middle for outbound SMTP connexions on port 25, so you might interact with the ISP's SMTP server instead of the intended MX server. FakeOpenSmtpRelay attempts to prefer SMTPS service with explicit TLS (ports tcp/587 & tcp/465), but it seems that most major email providers don't offer this service. IPv6 is also preferred, which is sometimes enough to "evade" the ISP MitM and directly connect to the genuine MX server. Note that a true open relay would operate the same way (aside probably the search for explicit TLS enabled services. 
+
+
+### FakeOpenSmtpRelay.py works great, thanks! I now have 1'000 / 10'000 / 100'000 / 1'000'000 (mal)spams in my inbox. How do I analyse / handle that volume?
+
+Depending on your server specs, handling more than a few hundreds of emails per IMAP is... _delicate_. [Script MboxParsingExamples.py](Scripts/MboxParsingExamples.py) gives examples how to explore, analyze and triage large amounts of emails.
