@@ -53,6 +53,14 @@ class GlobalConfig:
 	# Set this variable to True if your TEST_PROBE_RELAY_SERVER server supports explicit TLS on tcp/465 or tcp/587
 	TEST_PROBE_RELAY_SERVER_EXPLICIT_TLS = False
 
+	# Configuration settings IPV6_* only apply if your machine has IPv6 connectivity to Internet.
+	# If your machine does NOT have IPv6, ignore these settings as they are irrelevant for you
+	
+	# IPV6_FORCE_IPV4_MX_FOR_DOMAINS forces the script to connect to the IPv4 address of the MX for all listed domains. 
+	# This is mainly due to some providers (typically GMail) requesting PTR records for IPv6 addresses used to send mails.
+	# (see https://github.com/waaeh/FakeOpenSmtpRelay/issues/1)
+	# If you have IPv6 connectivity AND you have a valid PTR record for the IPv6 address used to relay mail, simply set [].
+	IPV6_FORCE_IPV4_MX_FOR_DOMAINS = ['gmail.com']
 
 class Helpers:
 	def get_path(mailbox_name):
@@ -173,7 +181,7 @@ class ParseOpenRelayInbox:
 			self.config["logs"].append(datetime.now().isoformat() + ": verification results of the " + str(len(msgToRelay)) + " new message(s) which would get relayed:")
 			# Iteration through a list of message keys
 			for k in msgToRelay:
-				rm = RelayMessage(self.inbox, k)
+				rm = RelayMessage(self.inbox, k, self.config['global']['ipv4'])
 				rm.Verify()
 				self.config["logs"].append("Would message be relayed? " + str(rm.canRelay) + " - Details:")
 				
@@ -194,7 +202,9 @@ class ParseOpenRelayInbox:
 			if GlobalConfig.TEST_PROBE_RELAY_SUBJECT in msg["Subject"]:
 				return True
 			
-			if self.config['global']['ip'] in msg["Subject"]:
+			# We only search for IPv4 addresses right now.
+			# INetSim doesn't handle IPv6 inbound emails as far as I tried out
+			if self.config['global']['ipv4'] in msg["Subject"]:
 				return True
 				
 			# Add you other conditions to relay a message here...
@@ -203,10 +213,11 @@ class ParseOpenRelayInbox:
 
 
 class RelayMessage:
-	def __init__(self, inbox, msgKey):
+	def __init__(self, inbox, msgKey, ipv6_address = None):
 		self.inbox = inbox
 		self.msg = inbox[msgKey]
 		self.msgKey = msgKey
+		self.ipv6_address = ipv6_address
 		self.canRelay = True
 		self.logs = []
 		self.rcpt = None
@@ -263,6 +274,20 @@ class RelayMessage:
 			self.rcptMxAnswers.rrset.items.sort(key=lambda x: x.preference)
 			for mx in self.rcptMxAnswers.rrset.items[:3]:
 				self.rcptBestMx.append( (mx.exchange.to_text()[:-1], 25) )
+		
+		# Once we have our list of preferred MX servers, we need to check if we have some IPv6 edge case
+		if self.ipv6_address is not None:
+			# Verify the config only if we have an IPv6 address
+			if self.rcptDomain in GlobalConfig.IPV6_FORCE_IPV4_MX_FOR_DOMAINS:
+				# Get server, resolve ipv4 and force the IPv4 as host
+				updated_rcptBestMx = []
+				for mx in self.rcptBestMx:
+					mx_a_response = dns.resolver.query(mx[0], 'A')
+					ipv4_of_mx = mx_a_response.rrset[0].address
+					updated_rcptBestMx.append( (ipv4_of_mx, mx[1]) )
+				
+				self.rcptBestMx = updated_rcptBestMx
+				
 		
 		self.logs.append("Has support for Secure connexion: " + str(self.secureConnSupport))
 		for i in self.rcptBestMx:
@@ -408,8 +433,26 @@ class ConfigInEmail:
 			
 	def create_new_config(self):
 		msg = self.create_new_mail()
-		ip = Helpers.get_json_from_url('https://httpbin.org/ip')
-		obj = { 'global': {'ip': ip['origin'], 'maxRelayPerDay' : GlobalConfig.MAX_RELAY_PER_DAY, 'todayRelayCount': 0, 'ParseInbox': True, 'maxInboxSize': GlobalConfig.MAX_INBOX_SIZE}, 'logs': []}
+		ipv4 = Helpers.get_json_from_url('https://v4.ident.me/.json')['address']
+		ipv6 = None
+		try:
+			ipv6 = Helpers.get_json_from_url('https://v6.ident.me/.json')['address']
+		except:
+			# We dont do anything special if no IPv6 is found, variable is already set to None
+			pass
+			
+		obj = {
+			'global':
+				{
+					'ipv4': ipv4,
+					'ipv6': ipv6,
+					'maxRelayPerDay' : GlobalConfig.MAX_RELAY_PER_DAY,
+					'todayRelayCount': 0,
+					'ParseInbox': True,
+					'maxInboxSize': GlobalConfig.MAX_INBOX_SIZE
+				},
+			'logs': []
+		}
 		msg.set_payload(json.dumps(obj, indent=2))
 		
 		self.msgKey = self.mbox.add(msg)
@@ -439,6 +482,8 @@ class Exec():
 		#	- interactive = False
 		# 	- testMode = False
 		#	- debug = False
+		# TODO: P2 - enhance console logs in batch mode
+		# TODO: P2 - implement -debug across the board to be verbose output. Hide irrelevant txt (typically SMTP relaying).
 		self.startup_args = startup_args
 	
 	def run(self):
@@ -479,6 +524,12 @@ class Exec():
 	def runInteractive(self):
 		self.inbox = Helpers.get_mailbox(GlobalConfig.MAILBOX_INBOX_NAME)
 		self.printMailbox(self.inbox)
+		ipv6 = None
+		try:
+			ipv6 = Helpers.get_json_from_url('https://v6.ident.me/.json')['address']
+		except:
+			# We dont do anything special if no IPv6 is found, variable is already set to None
+			pass
 		
 		while True:
 			opt = Helpers.choice(['R', 'V', 'S', 'Q'], "Enter your choice (Refresh, Verify, Send, Quit): ")
@@ -495,7 +546,7 @@ class Exec():
 			if opt == 'V':
 				indexMail = int(input("Enter the ID of the email to verify: "))
 				
-				rm = RelayMessage(self.inbox, indexMail)
+				rm = RelayMessage(self.inbox, indexMail, ipv6)
 				rm.Verify()
 				for log in rm.logs:
 					print (log)
@@ -504,7 +555,7 @@ class Exec():
 			if opt == 'S':
 				indexMail = int(input("Enter the ID of the email to send: "))
 				
-				rm = RelayMessage(self.inbox, indexMail)
+				rm = RelayMessage(self.inbox, indexMail, ipv6)
 				rm.Verify()
 				for log in rm.logs:
 					print (log)
