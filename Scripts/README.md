@@ -2,6 +2,8 @@
 
 [Script FakeOpenSmtpRelay.py](FakeOpenSmtpRelay.py) is the central component, as it tries to differenciate in the received emails between email probes sent by spammers and spam messages.
 
+Aside this main script, this folder also features the follow file(s):
+- [MboxParsingExamples.py](MboxParsingExamples.py) containing examples on how to explore, analyze and triage emails (typically once your honeypot received 1'000 / 10'000 / 100'000 / 1'000'000 (mal)spams).
 
 ## FakeOpenSmtpRelay.py
 
