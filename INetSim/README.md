@@ -60,7 +60,7 @@ If your services do not fork / bind on startup, consider adding some delay (e.g.
 &INetSim::Log::MainLog("Real Date/Time: " . strftime "%Y-%m-%d %H:%M:%S", localtime);
 &INetSim::Log::MainLog("Fake Date/Time: " . (strftime "%Y-%m-%d %H:%M:%S", localtime(&INetSim::FakeTime::get_faketime())). " (Delta: " . &INetSim::Config::getConfigParameter("Faketime_Delta") . " seconds)");
 # ADDITION - waiting 60 seconds to see if the forking issues at startup get solved...
-sleep 60
+sleep 60;
 &INetSim::Log::MainLog(" Forking services...");
 ```
 
