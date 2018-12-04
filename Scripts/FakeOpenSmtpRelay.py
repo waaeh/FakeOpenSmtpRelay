@@ -5,14 +5,11 @@ import mailbox
 from email.header import decode_header
 from email.utils import parseaddr
 import email.utils
-# TODO: P2 Tidy up unused code such as below
-#from configparser import ConfigParser
 from datetime import date
 from datetime import datetime
 import json
 from urllib.request import urlopen
 import os
-# TODO: P2 ensure that dnspython is installed - sudo apt-get install python3-pip && sudo pip3 install dnspython3
 import dns.resolver
 import socket
 import argparse
@@ -21,8 +18,6 @@ import smtplib
 import time
 
 
-# TODO: P2 - "python-ify the various class and function names
-# TODO: P2 - "python-ify and create relevant documentation
 
 class GlobalConfig:
 	"""This class stores the global configurations you may want to adapt for your installation."""
@@ -62,17 +57,26 @@ class GlobalConfig:
 	# If you have IPv6 connectivity AND you have a valid PTR record for the IPv6 address used to relay mail, simply set [].
 	IPV6_FORCE_IPV4_MX_FOR_DOMAINS = ['gmail.com']
 
+
+
 class Helpers:
+	"""Helper class with static methods usable in the whole project."""
+
 	def get_path(mailbox_name):
+		"""Returns an absolute path for a given mailbox_name."""
 		if '/' in GlobalConfig.MAILBOX_PATH[0]:
 			return os.path.join(GlobalConfig.MAILBOX_PATH, mailbox_name)
 		else:
 			return os.path.join(os.path.expanduser("~"), GlobalConfig.MAILBOX_PATH, mailbox_name)
-			
+
+
 	def get_mailbox(mailbox_name):
+		"""Returns a mailbox object for a given mailbox_name."""
 		return mailbox.mbox(Helpers.get_path(mailbox_name))
 
-	def choice(options, prompt):
+
+	def prompt_choice(options, prompt):
+		"""Proposes options to the choice to the user, with prompt as description."""
 		while True:
 			output = input(prompt)
 			if output in options:
@@ -80,7 +84,9 @@ class Helpers:
 			else:
 				print("Bad option. Options: " + ", ".join(options))
 	
+
 	def trim_str(s, l, ellipsis = True):
+		"""Trims string s to length l-2 and completes the string with "..", unless ellipsis is set to False."""
 		if s is None:
 			return ""
 		if ellipsis:
@@ -88,13 +94,17 @@ class Helpers:
 		else:
 			return (s[:l]) if len(s) > l else s
 	
+
 	def get_json_from_url(url):
+		"""Requests value from url, assumes the response is a JSON string and converts it directly to a Python object."""
 		j = json.loads(urlopen(url).read().decode())
 		return j
-		
-	def getOpenTcpPorts(hostname, arrPorts):
+	
+
+	def get_open_tcp_ports(hostname, arr_ports):
+		"""Poor man's port scan on hostname for an array of ports."""
 		result = []
-		for p in arrPorts:
+		for p in arr_ports:
 			try:
 				# Timeout set to 3 seconds
 				socket.create_connection((hostname, p), 3)
@@ -103,8 +113,10 @@ class Helpers:
 				result.append(False)
 				
 		return result
-		
-	def resetFlags(mbox):
+	
+
+	def reset_flags(mbox):
+		"""Only useful for debugging / testing purposes. Resets all the flags of all messages in a given mbox object."""
 		mbox.lock()
 		for key, msg in mbox.iteritems():
 			m = mbox[key]
@@ -115,30 +127,26 @@ class Helpers:
 		mbox.flush()
 
 
+
 class ParseOpenRelayInbox:
+	"""Logic to periodically parse an inbox. Contains various safeguards / limits to avoid spam diffusion and performance issues."""
+
 	def __init__(self, startup_args):
 		self.configObj = ConfigInEmail()
 		self.config = self.configObj.read()
 		self.startup_args = startup_args
-		
-	def listMsgs(self):
-		# TODO: P2 refactor with getter
-		if self.inbox == None:
-			self.inbox = Helpers.get_mailbox(GlobalConfig.MAILBOX_INBOX_NAME)
-		
-		return self.inbox
-			
 	
-	def Run(self):
+	
+	def run(self):
 		# check that the preconditions to parse the inbox are fullfilled, => verify if we reached various thresholds
-		if self.config["global"]["ParseInbox"]:
-			self.ParseInbox()
+		if self.config["global"]["parseInbox"]:
+			self.parse_inbox()
 	
 	
-	def ParseInbox(self):
-		# Check if we reached mbox limits, otherwise parse msg and pass emails with no flags to FilterMessage
+	def parse_inbox(self):
+		# Check if we reached mbox limits, otherwise parse msg and pass emails with no flags to filter_message
 		if self.config["global"]["todayRelayCount"] > self.config["global"]["maxRelayPerDay"]:
-			self.config["global"]["ParseInbox"] = False
+			self.config["global"]["parseInbox"] = False
 			self.config["logs"].append(datetime.now().isoformat() + ": todayRelayCount limit reached, disabling parsing the inbox for today")
 			self.configObj.write(self.config)
 			return
@@ -146,7 +154,7 @@ class ParseOpenRelayInbox:
 		# Check limit on mailbox size
 		self.inbox = Helpers.get_mailbox(GlobalConfig.MAILBOX_INBOX_NAME)
 		if len(self.inbox) > self.config["global"]["maxInboxSize"]:
-			self.config["global"]["ParseInbox"] = False
+			self.config["global"]["parseInbox"] = False
 			self.config["logs"].append(datetime.now().isoformat() + ": maxInboxSize limit reached, disabling parsing the inbox for today")
 			self.configObj.write(self.config)
 			return
@@ -160,10 +168,10 @@ class ParseOpenRelayInbox:
 			# If the message is new and hasn't been read
 			if 'R' not in m.get_flags():
 				m.add_flag("R")
-				if self.FilterMessage(m):
+				if self.filter_message(m):
 					m.add_flag("A")
 					msgToRelay.append(key)
-					# The presence of Subject was verified earlier in FilterMessage
+					# The presence of Subject was verified earlier in filter_message
 					self.config["logs"].append(datetime.now().isoformat() + (": got 1 new message, which would get relayed: %s" % m["Subject"]))
 					self.config["logs"].append(datetime.now().isoformat() + (": flag for msg %s: %s" % (m["Subject"], m.get_flags())))
 				else:
@@ -182,7 +190,7 @@ class ParseOpenRelayInbox:
 			# Iteration through a list of message keys
 			for k in msgToRelay:
 				rm = RelayMessage(self.inbox, k, self.config['global']['ipv4'])
-				rm.Verify()
+				rm.verify()
 				self.config["logs"].append("Would message be relayed? " + str(rm.canRelay) + " - Details:")
 				
 				# No interactive mode, testMode enabled if passed so via command line
@@ -196,7 +204,8 @@ class ParseOpenRelayInbox:
 		self.inbox.close()
 	
 	
-	def FilterMessage(self, msg):	
+	def filter_message(self, msg):
+		"""Key function: received a email as msg and returns True if it's identified as an email probe worth relaying further."""
 		if "Subject" in msg.keys():
 			# We keep this check active so you can "debug" your prod daemon in case of doubt
 			if GlobalConfig.TEST_PROBE_RELAY_SUBJECT in msg["Subject"]:
@@ -212,7 +221,10 @@ class ParseOpenRelayInbox:
 		return False
 
 
+
 class RelayMessage:
+	"""Routines to verify if a message can be relayed and perform the relay if desired. If in TestMode , configurations GlobalConfig.TEST_PROBE_RELAY_* will be used for the relay."""
+
 	def __init__(self, inbox, msgKey, ipv6_address = None):
 		self.inbox = inbox
 		self.msg = inbox[msgKey]
@@ -230,7 +242,7 @@ class RelayMessage:
 		
 	
 	# TODO: P2 investigate why this step can take soooo long (portscan?)
-	def Verify(self):
+	def verify(self):
 		if self.msg["Envelope-To"] is None:
 			self.logs.append("No Envelope-To address")
 			self.canRelay = False
@@ -259,7 +271,7 @@ class RelayMessage:
 		hostToPort = {}
 		for mx in self.rcptMxAnswers:
 			hostname = mx.exchange.to_text()[:-1]
-			hostToPort[hostname] = Helpers.getOpenTcpPorts(hostname, refPorts)
+			hostToPort[hostname] = Helpers.get_open_tcp_ports(hostname, refPorts)
 			self.logs.append("Support for secure ports on " + hostname + ": " + str(hostToPort[hostname]))
 			# Gets the index(es) if there's a secure port to be used
 			for index in [i for i, e in enumerate(hostToPort[hostname]) if e == True]:
@@ -319,7 +331,7 @@ class RelayMessage:
 		if interactive:
 			print("\n\n" + new_msg.as_string() + "\n")
 			print("This message will be sent with SMTP envelop From: %s -> To: %s" % (self.smtpFrom, self.rcpt))
-			opt = Helpers.choice(['Y', 'N'], "Do you want to send this message (Yes, No)? ")
+			opt = Helpers.prompt_choice(['Y', 'N'], "Do you want to send this message ([Y]es, [N]o)? ")
 			if opt == 'N':
 				return
 		
@@ -375,19 +387,22 @@ class RelayMessage:
 		self.sent_probes_mbox.add(new_msg)
 		self.sent_probes_mbox.unlock()
 		self.sent_probes_mbox.flush()
-		
+
 
 
 class ProbeMessage:
+	"""Converts a received email / probe message into a message ready to be relayed."""
+
 	def __init__(self, msg):
 		self.original_msg = msg
 		self.relayed_msg = None
 	
+
 	def create_relayed_message(self):
 		msg = copy.copy(self.original_msg)
 		# We first delete all headers we added ourselves
 		# TODO: P2 - remove X-Relay-Sendmail-* headers if found, in case someone copies an email from sentProbes to inbox again
-		headers_to_delete = ['X-UID', 'Status', 'X-Keywords', 'X-Status', 'Envelope-To', 'Return-Path', 'X-INetSim-Id']
+		headers_to_delete = ['X-UID', 'Status', 'X-Keywords', 'X-Status', 'Envelope-To', 'Return-Path', 'X-INetSim-Id', '"X-INetSim-RCPT']
 		for h in headers_to_delete:
 			del(msg[h])
 			
@@ -397,6 +412,7 @@ class ProbeMessage:
 		# TODO: P3 add hop in received??
 		self.relayed_msg = msg
 	
+
 	def get_relayed_message(self):
 		# TODO: P2 error handling
 		return self.relayed_msg
@@ -404,6 +420,8 @@ class ProbeMessage:
 
 
 class ConfigInEmail:
+	"""Daily logs and configuration are stored in an email in mailbox logs. This class assists in creating, retrieving or saving content."""
+
 	def __init__(self):
 		self.todayDate = date.today().isoformat()
 		self.mbox = Helpers.get_mailbox(GlobalConfig.MAILBOX_LOGS_NAME)
@@ -414,11 +432,13 @@ class ConfigInEmail:
 			self.msgKey = len(self.mbox)-1
 			self.msg = self.mbox[self.msgKey]
 	
+
 	def __del__(self):
 		#self.mbox.unlock()
 		self.mbox.flush()
 		self.mbox.close()
-		
+	
+
 	def create_new_mail(self):
 		msg = mailbox.mboxMessage()
 		address = email.utils.formataddr(('InetSim Relayer', 'tests@example.com'))
@@ -430,7 +450,8 @@ class ConfigInEmail:
 		msg["To"] = address
 		msg["Subject"] = "Logs from " + self.todayDate
 		return msg
-			
+
+
 	def create_new_config(self):
 		msg = self.create_new_mail()
 		ipv4 = Helpers.get_json_from_url('https://v4.ident.me/.json')['address']
@@ -448,7 +469,7 @@ class ConfigInEmail:
 					'ipv6': ipv6,
 					'maxRelayPerDay' : GlobalConfig.MAX_RELAY_PER_DAY,
 					'todayRelayCount': 0,
-					'ParseInbox': True,
+					'parseInbox': True,
 					'maxInboxSize': GlobalConfig.MAX_INBOX_SIZE
 				},
 			'logs': []
@@ -459,11 +480,11 @@ class ConfigInEmail:
 		self.mbox.flush()
 		return msg
 	
+
 	def read(self):
-		#config = ConfigParser()
-		#return config.read_string(self.msg.get_payload())
 		return json.loads(self.msg.get_payload())
 	
+
 	def write(self, config):
 		# Only write back the config when a change actually occured
 		if config != json.loads(self.msg.get_payload()):
@@ -475,8 +496,11 @@ class ConfigInEmail:
 			self.msg = newMsg
 			self.mbox.flush()
 
-		
+
+
 class Exec():
+	"""Handles the various runtime modes. This is the class to be run to start the program."""
+
 	def __init__(self, startup_args):
 		# startup_args is a Namespace set via argparser and containing the following key / values
 		#	- interactive = False
@@ -485,23 +509,32 @@ class Exec():
 		# TODO: P2 - enhance console logs in batch mode
 		# TODO: P2 - implement -debug across the board to be verbose output. Hide irrelevant txt (typically SMTP relaying).
 		self.startup_args = startup_args
-	
+
+
 	def run(self):
+		# Check prerequisits
+		if 'dns.resolver' not in sys.modules:
+			print("This script requires module dns.resolver. Please install it before re-running the script:")
+			print("E.g. sudo apt-get install python3-pip && sudo pip3 install dnspython3")
+			raise
+
 		if self.startup_args.interactive:
-			self.runInteractive()
+			self.run_interactive()
 		else:
-			self.runBatch()
+			self.run_batch()
+
 			
-	def getScreenWidth(self):
+	def get_screen_width(self):
 		self.rows, self.columns = os.popen('stty size', 'r').read().split()
 		self.rows = int(self.rows)
 		self.columns = int(self.columns)
 		return self.columns
-		
-	def printMailbox(self, mailbox):
+
+
+	def print_mailbox(self, mailbox):
 		# Try to optimize the screen size: static colums are 26 char in size. Default match is for a console of 80 char width
 		dynSize = (17, 17, 20)
-		widthColumns = self.getScreenWidth()
+		widthColumns = self.get_screen_width()
 		if widthColumns > 80:
 			widthToDistribute = int((widthColumns - 80) / 3)
 			dynSize = tuple(x+widthToDistribute for x in dynSize)
@@ -521,9 +554,10 @@ class Exec():
 			)
 			print(tableFormat % (content))
 	
-	def runInteractive(self):
+
+	def run_interactive(self):
 		self.inbox = Helpers.get_mailbox(GlobalConfig.MAILBOX_INBOX_NAME)
-		self.printMailbox(self.inbox)
+		self.print_mailbox(self.inbox)
 		ipv6 = None
 		try:
 			ipv6 = Helpers.get_json_from_url('https://v6.ident.me/.json')['address']
@@ -532,7 +566,7 @@ class Exec():
 			pass
 		
 		while True:
-			opt = Helpers.choice(['R', 'V', 'S', 'Q'], "Enter your choice (Refresh, Verify, Send, Quit): ")
+			opt = Helpers.prompt_choice(['R', 'V', 'S', 'Q'], "Enter your prompt_choice ([R]efresh, [V]erify, [S]end, [Q]uit): ")
 			
 			if opt == "Q":
 				print("Bye!")
@@ -541,13 +575,13 @@ class Exec():
 			if opt == 'R':
 				self.inbox.close()
 				self.inbox = Helpers.get_mailbox(GlobalConfig.MAILBOX_INBOX_NAME)
-				self.printMailbox(self.inbox)
+				self.print_mailbox(self.inbox)
 			
 			if opt == 'V':
 				indexMail = int(input("Enter the ID of the email to verify: "))
 				
 				rm = RelayMessage(self.inbox, indexMail, ipv6)
-				rm.Verify()
+				rm.verify()
 				for log in rm.logs:
 					print (log)
 			
@@ -556,21 +590,24 @@ class Exec():
 				indexMail = int(input("Enter the ID of the email to send: "))
 				
 				rm = RelayMessage(self.inbox, indexMail, ipv6)
-				rm.Verify()
+				rm.verify()
 				for log in rm.logs:
 					print (log)
 				
-				opt = Helpers.choice(['Y', 'N'], "Confirm you want to send this message (Yes, No): ")
+				opt = Helpers.prompt_choice(['Y', 'N'], "Confirm you want to send this message ([Y]es, [N]o): ")
 				if opt == 'Y':
 					# We already run the script in interactive mode, so we force the relay to be interactive as well
 					rm.relay(True, self.startup_args.testMode)
-				
+
+
 	# Idea: run it on startup e.g. with https://coderwall.com/p/quflrg/run-a-script-on-startup-in-a-detached-screen-on-a-raspberry-pi
-	def runBatch(self):
+	def run_batch(self):
 		while True:	
 			p = ParseOpenRelayInbox(self.startup_args)
-			p.Run()
+			p.run()
 			time.sleep(GlobalConfig.BATCH_RUN_INTERVAL)
+
+
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Manages emails received on a SMTP open relay.')
