@@ -114,3 +114,17 @@ finally:
 	mboxO.close()
 	mboxD.flush()
 	mboxD.close()
+	
+	
+	
+# As filtering condition: is a given header written in e.g. Cyrillic alphabet? 
+import unicodedata
+
+if msg['Subject'] is not None:
+	subj = decode_header(msg['Subject'])
+	if subj[0][1] is None:
+		subj2 = (subj[0][0])
+	else:
+		subj2 = ((subj[0][0]).decode(subj[0][1]))
+
+	'CYRILLIC' in unicodedata.name(subj2.strip()[0])
