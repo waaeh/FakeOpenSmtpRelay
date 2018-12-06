@@ -577,27 +577,25 @@ class Exec():
 				self.inbox = Helpers.get_mailbox(GlobalConfig.MAILBOX_INBOX_NAME)
 				self.print_mailbox(self.inbox)
 			
-			if opt == 'V':
-				indexMail = int(input("Enter the ID of the email to verify: "))
-				
+			# Option Verify and Send share the same initial steps (verify)
+			if opt in ['V', 'S']:
+				if opt == 'S':
+					input_text = "Enter the ID of the email to verify: "
+				else:
+					input_text = "Enter the ID of the email to send: "
+
+				indexMail = int(input(input_text))				
 				rm = RelayMessage(self.inbox, indexMail, ipv6)
 				rm.verify()
 				for log in rm.logs:
 					print (log)
-			
-			# TODO: P2 merge with V
-			if opt == 'S':
-				indexMail = int(input("Enter the ID of the email to send: "))
-				
-				rm = RelayMessage(self.inbox, indexMail, ipv6)
-				rm.verify()
-				for log in rm.logs:
-					print (log)
-				
-				opt = Helpers.prompt_choice(['Y', 'N'], "Confirm you want to send this message ([Y]es, [N]o): ")
-				if opt == 'Y':
-					# We already run the script in interactive mode, so we force the relay to be interactive as well
-					rm.relay(True, self.startup_args.testMode)
+
+				# Specific code branch for sending emails
+				if opt == 'S':
+					opt = Helpers.prompt_choice(['Y', 'N'], "Confirm you want to send this message ([Y]es, [N]o): ")
+					if opt == 'Y':
+						# We already run the script in interactive mode, so we force the relay to be interactive as well
+						rm.relay(True, self.startup_args.testMode)
 
 
 	# Idea: run it on startup e.g. with https://coderwall.com/p/quflrg/run-a-script-on-startup-in-a-detached-screen-on-a-raspberry-pi
