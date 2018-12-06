@@ -264,7 +264,6 @@ class RelayMessage:
 		self.sent_probes_mbox = Helpers.get_mailbox(GlobalConfig.MAILBOX_SENTPROBE_NAME)
 		
 	
-	# TODO: P2 investigate why this step can take soooo long (portscan?)
 	def verify(self):
 		if self.msg["Envelope-To"] is None:
 			self.logs.append("No Envelope-To address")
