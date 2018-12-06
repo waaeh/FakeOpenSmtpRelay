@@ -85,6 +85,49 @@ sleep 60;
 Create folder `smtps` (by default in `/var/lib/inetsim/inetsim/smtp/` and assign ownership and modify rights to user inetsim.
 
 
+### Store all recipients in a dedicated header (instead of just the first RCPT TO)
+1. Edit file /usr/share/perl5/INetSim/SMTP.pm to add after each initialization of $self->{envelope_recipient} an additional class property named `envelope_recipients_arr`:
+	```diff
+		$self->{envelope_recipient} = undef;
+	+	$self->{envelope_recipients_arr} = [];
+	```
+	There should be 6 such occurences.
+	
+2. Add the following line at the end of `sub RCPT` to store all email addresses in the newly defined array:
+	```diff
+	sub RCPT {
+	    my ($self, $args) = @_;
+
+	    [...]
+
+	    $self->{recipient_given} = 1;
+	    $self->{envelope_recipient} = $recipient if (! defined $self->{envelope_recipient});
+	+    push ((@{$self->{envelope_recipients_arr}}), $recipient);
+	    push (@RECIPIENTS, $recipient);
+	    $self->send_(250, "Ok", "2.1.5");
+	}
+	```
+	
+3. In `sub write_message` add the following line to insert a new custom header named `X-INetSim-RCPT`:
+	```diff
+		[...]
+		# unique message-id
+		push (@hdr, "X-INetSim-Id: $message_id");
+	+        push (@hdr, "X-INetSim-RCPT: " . join(",", @{ $self->{envelope_recipients_arr} }) );
+		# write additional headers for CHUNKING
+		if ($self->{transaction_type} eq "bdat") {
+		    if ($self->{bdat_incomplete}) {
+			push (@hdr, "X-Chunking: YES, INCOMPLETE");
+		    }
+		    else {
+			push (@hdr, "X-Chunking: YES, COMPLETE");
+		    }
+		}
+		# write additional headers for CHECKPOINT/RESTART
+		[...]
+	```
+
+
 ### WORK IN PROGRESS - Adaptations to support STARTTLS / explicit SMTPS
 [As already noted in the FAQ](../../../#why-is-starttls-disabled-when-receiving-emails), STARTTLS / explicit SMTPS doesn't work according to my tests. The following attempts to correct this have been made, without success so far:
 
