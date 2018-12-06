@@ -428,7 +428,7 @@ class ProbeMessage:
 		msg = copy.copy(self.original_msg)
 		# We first delete all headers we added ourselves
 		# TODO: P2 - remove X-Relay-Sendmail-* headers if found, in case someone copies an email from sentProbes to inbox again
-		headers_to_delete = ['X-UID', 'Status', 'X-Keywords', 'X-Status', 'Envelope-To', 'Return-Path', 'X-INetSim-Id', '"X-INetSim-RCPT']
+		headers_to_delete = ['X-UID', 'Status', 'X-Keywords', 'X-Status', 'Envelope-To', 'Return-Path', 'X-INetSim-Id', 'X-INetSim-RCPT']
 		for h in headers_to_delete:
 			del(msg[h])
 			
