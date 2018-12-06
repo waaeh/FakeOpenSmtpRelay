@@ -16,6 +16,7 @@ import argparse
 import copy
 import smtplib
 import time
+import asyncio
 
 
 
@@ -61,20 +62,20 @@ class GlobalConfig:
 
 class Helpers:
 	"""Helper class with static methods usable in the whole project."""
-
+	
 	def get_path(mailbox_name):
 		"""Returns an absolute path for a given mailbox_name."""
 		if '/' in GlobalConfig.MAILBOX_PATH[0]:
 			return os.path.join(GlobalConfig.MAILBOX_PATH, mailbox_name)
 		else:
 			return os.path.join(os.path.expanduser("~"), GlobalConfig.MAILBOX_PATH, mailbox_name)
-
-
+	
+	
 	def get_mailbox(mailbox_name):
 		"""Returns a mailbox object for a given mailbox_name."""
 		return mailbox.mbox(Helpers.get_path(mailbox_name))
-
-
+	
+	
 	def prompt_choice(options, prompt):
 		"""Proposes options to the choice to the user, with prompt as description."""
 		while True:
@@ -84,7 +85,7 @@ class Helpers:
 			else:
 				print("Bad option. Options: " + ", ".join(options))
 	
-
+	
 	def trim_str(s, l, ellipsis = True):
 		"""Trims string s to length l-2 and completes the string with "..", unless ellipsis is set to False."""
 		if s is None:
@@ -94,27 +95,49 @@ class Helpers:
 		else:
 			return (s[:l]) if len(s) > l else s
 	
-
+	
 	def get_json_from_url(url):
 		"""Requests value from url, assumes the response is a JSON string and converts it directly to a Python object."""
 		j = json.loads(urlopen(url).read().decode())
 		return j
 	
-
-	def get_open_tcp_ports(hostname, arr_ports):
-		"""Poor man's port scan on hostname for an array of ports."""
-		result = []
-		for p in arr_ports:
-			try:
-				# Timeout set to 3 seconds
-				socket.create_connection((hostname, p), 3)
-				result.append(True)
-			except:
-				result.append(False)
-				
-		return result
 	
-
+	async def check_port(ip, port, loop):
+		"""Async port scanner - source: http://gunhanoral.com/python/2017/07/04/async-port-check.html"""
+		conn = asyncio.open_connection(ip, port, loop=loop)
+		try:
+				reader, writer = await asyncio.wait_for(conn, timeout=5)
+				# TODO: P2 - enable in verbose / debug mode
+				#print(ip, port, 'ok')
+				#return (ip, port, True)
+				return {'hostname': ip, 'port': port, 'open': True}
+		except:
+				# TODO: P2 - enable in verbose / debug mode
+				#print(ip, port, 'nok')
+				#return (ip, port, False)
+				return {'hostname': ip, 'port': port, 'open': False}
+	
+	
+	async def get_open_tcp_ports_async(dests, ports, loop):
+		"""Async scheduler for port scanner - source: http://gunhanoral.com/python/2017/07/04/async-port-check.html"""
+		tasks = [asyncio.ensure_future(Helpers.check_port(d, p, loop)) for d in dests for p in ports]
+		responses = await asyncio.gather(*tasks)
+		return responses
+	
+	
+	def get_open_tcp_ports(hostnames, arr_ports):
+		"""Async port scanner helper - source: http://gunhanoral.com/python/2017/07/04/async-port-check.html"""
+		#print("%s: Starting..." % datetime.now().isoformat())
+		loop = asyncio.get_event_loop()
+		future = asyncio.ensure_future(Helpers.get_open_tcp_ports_async(hostnames, arr_ports, loop))
+		loop.run_until_complete(future)
+		#print('#'*50)
+		#print('Results: ', future.result())
+		#print('#'*50)
+		#print('Total time: ', time.time() - now)
+		return future.result()
+	
+	
 	def reset_flags(mbox):
 		"""Only useful for debugging / testing purposes. Resets all the flags of all messages in a given mbox object."""
 		mbox.lock()
@@ -268,21 +291,24 @@ class RelayMessage:
 		
 		
 		refPorts = [587, 465]
-		hostToPort = {}
-		for mx in self.rcptMxAnswers:
-			hostname = mx.exchange.to_text()[:-1]
-			hostToPort[hostname] = Helpers.get_open_tcp_ports(hostname, refPorts)
-			self.logs.append("Support for secure ports on " + hostname + ": " + str(hostToPort[hostname]))
-			# Gets the index(es) if there's a secure port to be used
-			for index in [i for i, e in enumerate(hostToPort[hostname]) if e == True]:
-				self.secureConnSupport = True
-				self.rcptBestMx.append( (hostname, refPorts[index]) )
-		
-		# If no secure port is open, we get the best 3 email servers
-		# TODO: P2 have a IPv6 preference for sending emails / selecting exchange servers
-		# print(dns.resolver.query('gmail.com', 'MX').response)
-		# Explore r.response.additional
-		if self.secureConnSupport is False:
+		mx_servers = [r.exchange.to_text()[:-1] for r in self.rcptMxAnswers]
+		scan_results = Helpers.get_open_tcp_ports(mx_servers, refPorts)
+
+		# If there are services allowing explicit TLS found...
+		secure_services_arr = [m for m in scan_results if m['open'] == True]
+		if secure_services_arr:
+			self.secureConnSupport = True
+			for svc in secure_services_arr:
+				self.logs.append("Support for secure port on %s, port %i" % (svc.hostname, svc.port))
+				self.rcptBestMx.append( (svc.hostname, svc.port) )
+		else:
+			self.logs.append("No support for secure ports found... ")	
+			# If no secure port is open, we get the best 3 email servers
+			# TODO: P2 have a IPv6 preference for sending emails / selecting exchange servers
+			# print(dns.resolver.query('gmail.com', 'MX').response)
+			# Explore r.response.additional
+			# r.response.additional[1].rdtype etc; 1 = A, 28 = AAAA
+			# r.response.additional[1][0].address = IP address
 			self.rcptMxAnswers.rrset.items.sort(key=lambda x: x.preference)
 			for mx in self.rcptMxAnswers.rrset.items[:3]:
 				self.rcptBestMx.append( (mx.exchange.to_text()[:-1], 25) )
