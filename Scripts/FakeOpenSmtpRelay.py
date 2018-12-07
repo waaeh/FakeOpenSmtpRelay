@@ -568,6 +568,7 @@ class Exec():
 		
 		# TODO: P2 fix subject if Unicode with the emails.util helper
 		# TODO: P2 add column "would relay" Y / N
+		# TODO: P2 add option "Reset flag" for a given msg id
 		for key, msg in mailbox.iteritems():
 			content = (
 				key,
@@ -593,7 +594,7 @@ class Exec():
 		while True:
 			opt = Helpers.prompt_choice(['R', 'V', 'S', 'Q'], "Enter your prompt_choice ([R]efresh, [V]erify, [S]end, [Q]uit): ")
 			
-			if opt == "Q":
+			if opt == 'Q':
 				print("Bye!")
 				return
 			
@@ -604,7 +605,7 @@ class Exec():
 			
 			# Option Verify and Send share the same initial steps (verify)
 			if opt in ['V', 'S']:
-				if opt == 'S':
+				if opt == 'V':
 					input_text = "Enter the ID of the email to verify: "
 				else:
 					input_text = "Enter the ID of the email to send: "
