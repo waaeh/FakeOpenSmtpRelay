@@ -48,6 +48,21 @@ class GlobalConfig:
 	TEST_PROBE_RELAY_SERVER = [('smtp.example.org', 25)]
 	# Set this variable to True if your TEST_PROBE_RELAY_SERVER server supports explicit TLS on tcp/465 or tcp/587
 	TEST_PROBE_RELAY_SERVER_EXPLICIT_TLS = False
+	# List of functions allowing to enforce or reject the relaying of a given email
+	# This is implemented as an array of lambda functions applied against a message
+	# FILTER_MSG_REFUSE_RELAY are evaluated before FILTER_MSG_FORCE_RELAY and thus take priority
+	# The example below will refuse relaying any message 
+	# 	- containing string '@no_relay_to_domain.com' in the message's SMTP header To
+	# 	OR
+	# 	- having no SMTP 'Subject' header
+	# FILTER_MSG_REFUSE_RELAY = [
+	# 								lambda msg: msg['To'] is not None and '@no_relay_to_domain.com' in msg['To'],
+	# 								lambda msg: msg['Subject'] is None
+	# ]
+	FILTER_MSG_FORCE_RELAY = [
+		lambda msg: msg['Subject'] is not None and GlobalConfig.TEST_PROBE_RELAY_SUBJECT in msg['Subject']
+	]
+	FILTER_MSG_REFUSE_RELAY = []
 
 	# Configuration settings IPV6_* only apply if your machine has IPv6 connectivity to Internet.
 	# If your machine does NOT have IPv6, ignore these settings as they are irrelevant for you
@@ -229,17 +244,21 @@ class ParseOpenRelayInbox:
 	
 	def filter_message(self, msg):
 		"""Key function: received a email as msg and returns True if it's identified as an email probe worth relaying further."""
+		# Add your conditions to relay a message as lambda expressions in GlobalConfig.FILTER_MSG_REFUSE_RELAY or FILTER_MSG_FORCE_RELAY
+
+		# If 1 condition of the FILTER_MSG_REFUSE_RELAY list of lambda expression means we do not relay the message further
+		if any([lambda_expression(msg) for lambda_expression in GlobalConfig.FILTER_MSG_REFUSE_RELAY]):
+			return False
+
+		# On the opposit, if just 1 condition of the FILTER_MSG_FORCE_RELAY list of lambda expression is fullfilled, we relay
+		if any([lambda_expression(msg) for lambda_expression in GlobalConfig.FILTER_MSG_FORCE_RELAY]):
+			return True
+		
 		if "Subject" in msg.keys():
-			# We keep this check active so you can "debug" your prod daemon in case of doubt
-			if GlobalConfig.TEST_PROBE_RELAY_SUBJECT in msg["Subject"]:
-				return True
-			
 			# We only search for IPv4 addresses right now.
 			# INetSim doesn't handle IPv6 inbound emails as far as I tried out
 			if self.config['global']['ipv4'] in msg["Subject"]:
 				return True
-				
-			# Add you other conditions to relay a message here...
 			
 		return False
 
